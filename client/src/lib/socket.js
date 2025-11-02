@@ -2,7 +2,7 @@ import { io } from 'socket.io-client'
 import { setOnlineUsers, addOnlineUser, removeOnlineUser } from '../store/slices/chatSlice.js'
 
 let socket = null
-let storeRef = null // 🧠 hold the Redux store reference
+let storeRef = null 
 
 export const initializeSocket = async (user, store) => {
   if (socket) {
