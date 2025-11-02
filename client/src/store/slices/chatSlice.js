@@ -87,6 +87,9 @@ export const updateGroupAvatar = createAsyncThunk(
 
 
 
+
+
+
 const initialState = {
   chats: [],
   selectedChat: null,
@@ -116,6 +119,7 @@ const chatSlice = createSlice({
         state.chats.unshift(updatedChat)
       }
     },
+    
     setOnlineUsers: (state, action) => {
       state.onlineUsers = action.payload
     },

@@ -77,11 +77,36 @@ export const fetchMessages = asyncHandler(async (req, res) => {
     .populate('chat')
     .sort({ createdAt: 1 })
 
+  // ✅ Filter out messages deleted by the current user
+  const filteredMessages = messages
+    .map((message) => {
+      const messageObj = message.toObject()
+      
+      // If deleted for all, show deleted content to everyone
+      if (message.deletedForAll) {
+        messageObj.content = 'This message was deleted'
+        messageObj.isDeleted = true
+        return messageObj
+      }
+      
+      // If current user deleted it for themselves, don't show it
+      const isDeletedForUser = message.deletedFor.some(
+        (userId) => userId.toString() === req.user._id.toString()
+      )
+      
+      if (isDeletedForUser) {
+        return null // Filter out completely
+      }
+      
+      return messageObj
+    })
+    .filter((msg) => msg !== null) // Remove null entries
+
   res.json(
     new ApiResponse(
       true,
       'Messages fetched successfully',
-      { messages }
+      { messages: filteredMessages }
     )
   )
 })
@@ -132,31 +157,73 @@ export const editMessage = asyncHandler(async (req, res) => {
 // @route   DELETE /api/message/:messageId
 // @access  Private
 export const deleteMessage = asyncHandler(async (req, res) => {
-  const { messageId } = req.params
+  const { messageId } = req.params;
 
-  const message = await Message.findById(messageId).populate('chat')
+  const message = await Message.findById(messageId).populate('chat');
   if (!message) {
-    throw new ApiError('Message not found', 404)
+    throw new ApiError('Message not found', 404);
   }
 
-  // ✅ Check if the current user is a member of the chat
-  const chat = await Chat.findById(message.chat._id)
+  // Check if the current user is a member of the chat
+  const chat = await Chat.findById(message.chat._id);
   const isMember = chat.users.some(
     (userId) => userId.toString() === req.user._id.toString()
-  )
+  );
 
   if (!isMember) {
-    throw new ApiError('You are not allowed to delete this message', 403)
+    throw new ApiError('You are not allowed to delete this message', 403);
   }
 
-  // ✅ Delete the message
-  await Message.findByIdAndDelete(messageId)
+  const isSender = message.sender.toString() === req.user._id.toString();
 
-  res.json(
-    new ApiResponse(true, 'Message deleted successfully', null)
-  )
-})
+  if (isSender) {
+    // Sender deletes: Delete for everyone
+    message.deletedForAll = true;
+    message.isDeleted = true;
+    message.content = 'This message was deleted';
+    await message.save();
+  } else {
+    // Receiver deletes: Delete only for them
+    if (!message.deletedFor.includes(req.user._id)) {
+      message.deletedFor.push(req.user._id);
+      await message.save();
+    }
+  }
 
+  // Repopulate with full chat data before emitting
+  const updatedMessage = await Message.findById(messageId)
+    .populate('sender', 'name avatar')
+    .populate({
+      path: 'chat',
+      populate: { path: 'users', select: 'name avatar email' },
+    });
+
+  // Fetch last non-deleted message in chat to update chat preview
+  const lastMessages = await Message.find({
+    chat: updatedMessage.chat._id,
+    isDeleted: { $ne: true },
+  })
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .populate('sender', 'name avatar');
+
+  const lastMessage = lastMessages.length > 0 ? lastMessages[0] : null;
+
+  if (updatedMessage?.chat?._id) {
+    req.io?.to(updatedMessage.chat._id.toString()).emit('message deleted', {
+      chatId: updatedMessage.chat._id.toString(),
+      deletedMessageIds: [updatedMessage._id.toString()],
+      lastMessage,
+    });
+  } else {
+    console.warn('⚠️ Chat not found for deleted message:', messageId);
+  }
+
+  res.json(new ApiResponse(true, 'Message deleted successfully', updatedMessage));
+});
+// @desc    Delete all messages in a chat
+// @route   DELETE /api/message/chat/:chatId
+// @access  Private
 export const deleteAllMessagesInChat = asyncHandler(async (req, res) => {
   const { chatId } = req.params
 
@@ -181,4 +248,3 @@ export const deleteAllMessagesInChat = asyncHandler(async (req, res) => {
     new ApiResponse(true, 'All messages deleted successfully', null)
   )
 })
-

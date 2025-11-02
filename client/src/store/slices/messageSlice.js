@@ -35,7 +35,8 @@ export const deleteMessage = createAsyncThunk(
   async (messageId, { rejectWithValue }) => {
     try {
       const response = await api.delete(`/message/${messageId}`)
-      return messageId // return the deleted messageId to remove from state
+      // Return the updated message object from the backend
+      return response.data.data // This contains the updated message
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete message')
     }
@@ -76,6 +77,25 @@ const messageSlice = createSlice({
     },
     setMessages: (state, action) => {
       state.messages = action.payload
+    },
+    updateMessage: (state, action) => {
+      const { updatedMessage, currentUserId } = action.payload
+      const index = state.messages.findIndex(msg => msg._id === updatedMessage._id)
+      
+      if (index !== -1) {
+        // If receiver deleted it for themselves, remove from their view
+        const isDeletedForUser = updatedMessage.deletedFor?.some(
+          (userId) => userId.toString() === currentUserId?.toString()
+        ) && !updatedMessage.deletedForAll
+        
+        if (isDeletedForUser) {
+          // Receiver deleted: remove from their view
+          state.messages = state.messages.filter(msg => msg._id !== updatedMessage._id)
+        } else {
+          // Update the message (sender deleted or message visible)
+          state.messages[index] = updatedMessage
+        }
+      }
     },
     clearMessages: (state) => {
       state.messages = []
@@ -135,7 +155,26 @@ const messageSlice = createSlice({
         state.error = action.payload
       })
       .addCase(deleteMessage.fulfilled, (state, action) => {
-        state.messages = state.messages.filter(msg => msg._id !== action.payload)
+        const updatedMessage = action.payload
+        const index = state.messages.findIndex(msg => msg._id === updatedMessage._id)
+        
+        if (index !== -1) {
+          // Get current user from localStorage since it's not in messageSlice state
+          const storedUser = JSON.parse(localStorage.getItem('user') || '{}')
+          const currentUserId = storedUser?._id?.toString()
+          
+          const isDeletedForUser = updatedMessage.deletedFor?.some(
+            (userId) => userId.toString() === currentUserId
+          ) && !updatedMessage.deletedForAll
+          
+          if (isDeletedForUser) {
+            // Receiver deleted: remove from their view
+            state.messages = state.messages.filter(msg => msg._id !== updatedMessage._id)
+          } else {
+            // Sender deleted or message is still visible: update the message
+            state.messages[index] = updatedMessage
+          }
+        }
       })
       .addCase(deleteMessage.rejected, (state, action) => {
         state.error = action.payload
@@ -159,6 +198,7 @@ const messageSlice = createSlice({
 export const {
   addMessage,
   setMessages,
+  updateMessage, 
   clearMessages,
   setTypingUsers,
   addTypingUser,

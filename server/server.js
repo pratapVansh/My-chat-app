@@ -36,6 +36,12 @@ app.use(cors({
 app.use(express.json())
 app.use(cookieParser())
 
+// ✅ ADD THIS HERE: Attach io to request object
+app.use((req, res, next) => {
+  req.io = io
+  next()
+})
+
 // -------------------- STATIC FILES (Avatars) --------------------
 
                                  

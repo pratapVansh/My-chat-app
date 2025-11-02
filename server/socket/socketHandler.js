@@ -91,6 +91,22 @@ const socketHandler = (io) => {
       socket.to(message.chat._id).emit('message received', message)
     })
 
+
+
+    // Handle message deletion (notify all participants in that chat)
+    socket.on('message deleted', (data) => {
+      const { chatId, lastMessage } = data
+      if (!chatId) return console.warn('⚠️ No chatId provided in message deleted event')
+    
+      io.to(chatId).emit('message deleted', { chatId, lastMessage })
+    })
+    
+
+    // Acknowledge message received
+    socket.on('message delivered', (messageId) => {
+      socket.to(messageId.chat._id).emit('message delivered', messageId)
+    })
+
     // Handle user disconnect
     socket.on('disconnect', async () => {
       console.log(`User disconnected: ${socket.user.name} (${userId})`)

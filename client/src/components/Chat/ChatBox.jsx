@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { setOnlineUsers, addOnlineUser, removeOnlineUser } from '@/store/slices/chatSlice'
-import { sendMessage, fetchMessages, addMessage, addTypingUser, removeTypingUser,deleteMessage,deleteAllMessages  } from '@/store/slices/messageSlice'
+import { sendMessage, fetchMessages, addMessage, addTypingUser, removeTypingUser,deleteMessage,deleteAllMessages ,updateMessage } from '@/store/slices/messageSlice'
 import { updateChatLastMessage } from '@/store/slices/chatSlice'
 import { formatMessageTime, getSender, isSameUser, isSameSender, isSameSenderMargin } from '@/lib/utils'
 import { getSocket } from '@/lib/socket'
@@ -23,6 +23,8 @@ const ChatBox = () => {
   const [newMessage, setNewMessage] = useState('')
   const [typing, setTyping] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [pendingMessages, setPendingMessages] = useState([]);
+
 
   const dispatch = useDispatch()
   const { selectedChat,onlineUsers } = useSelector((state) => state.chat)
@@ -100,6 +102,13 @@ const ChatBox = () => {
         }))
       }
     
+      // ✅ ADD THIS: Handle deleted messages
+      const handleDeletedMessage = ({ chatId, lastMessage }) => {
+        // Update the chat sidebar immediately for everyone
+        dispatch(updateChatLastMessage({ chatId, lastMessage }))
+      }
+      
+    
       const handleTyping = (data) => {
         if (data.chatId === selectedChat?._id && data.userId !== user?._id) {
           dispatch(addTypingUser(data))
@@ -113,17 +122,18 @@ const ChatBox = () => {
       }
     
       socket.on('message received', handleMessage)
+      socket.on('message deleted', handleDeletedMessage) // ✅ ADD THIS
       socket.on('typing', handleTyping)
       socket.on('stop typing', handleStopTyping)
     
       return () => {
         socket.emit('leave chat', selectedChat._id)
         socket.off('message received', handleMessage)
+        socket.off('message deleted', handleDeletedMessage) // ✅ ADD THIS
         socket.off('typing', handleTyping)
         socket.off('stop typing', handleStopTyping)
       }
     }, [selectedChat, dispatch, user])
-    
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -141,64 +151,111 @@ const ChatBox = () => {
   }, [])
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat?._id) {
-      console.error('Missing message content or chat ID')
-      return
-    }
+    if (!newMessage.trim() || !selectedChat?._id) return;
+  
+    const tempId = `pending-${Date.now()}`;
+    const optimisticMessage = {
+      _id: tempId,
+      content: newMessage,
+      chat: selectedChat,
+      sender: user,
+      createdAt: new Date().toISOString(),
+      isPending: true,
+    };
+  
+    setPendingMessages((prev) => [...prev, optimisticMessage]);
+    setNewMessage('');
+    setTyping(false);
+    getSocket().emit('stop typing', selectedChat._id);
+
+    dispatch(
+      updateChatLastMessage({
+        chatId: selectedChat._id,
+        lastMessage: {
+          _id: tempId,
+          content: newMessage,
+          sender: user,
+          createdAt: optimisticMessage.createdAt,
+          isPending: true,
+        },
+      })
+    );
   
     try {
-      const socket = getSocket()
-      if (!socket) {
-        console.warn('Socket not initialized yet!')
-        return
-      }
-  
-      const messageData = {
-        content: newMessage,
-        chatId: selectedChat._id,
-      }
-  
-      setNewMessage('')
-      setTyping(false)
-      socket.emit('stop typing', selectedChat._id)
-  
-      console.log('messageData being sent:', messageData) // 🔍 debug log
-  
-      const resultAction = await dispatch(sendMessage(messageData))
+      const resultAction = await dispatch(sendMessage({
+        content: optimisticMessage.content,
+        chatId: selectedChat._id
+      }));
   
       if (sendMessage.fulfilled.match(resultAction)) {
-        socket.emit('new message', resultAction.payload)
-        dispatch(
-          updateChatLastMessage({
-            chatId: selectedChat._id,
-            lastMessage: resultAction.payload,
-          })
-        )
+        const savedMessage = resultAction.payload;
+        setPendingMessages((prev) => prev.filter(m => m._id !== tempId));
+        // Message will appear via Redux when confirmed
+
+        getSocket().emit('new message', savedMessage);
+
       } else {
-        toast.error('Failed to send message')
-        setNewMessage(newMessage) // Restore message on failure
+        setPendingMessages((prev) => prev.filter(m => m._id !== tempId));
+        setNewMessage(optimisticMessage.content);
+        toast.error('Failed to send message');
       }
-    } catch (error) {
-      console.log('error', error)
-      toast.error('An unexpected error occurred')
-      setNewMessage(newMessage)
+    } catch {
+      setPendingMessages((prev) => prev.filter(m => m._id !== tempId));
+      setNewMessage(optimisticMessage.content);
+      toast.error('An unexpected error occurred');
     }
-  }
+  };
+  
   
 
   const handleDeleteMessage = async (messageId) => {
     try {
       const resultAction = await dispatch(deleteMessage(messageId))
+  
       if (deleteMessage.fulfilled.match(resultAction)) {
         toast.success('Message deleted successfully')
-      } else {
-        toast.error('Failed to delete message')
+  
+        // ✅ 1. Compute updated messages after deletion
+        const updatedMessages = messages.filter(msg => msg._id !== messageId)
+        const lastMsg = updatedMessages[updatedMessages.length - 1] || null
+  
+        // ✅ 2. Immediately update MyChats’ last message in Redux
+        dispatch(
+          updateChatLastMessage({
+            chatId: selectedChat._id,
+            lastMessage: lastMsg
+              ? {
+                  _id: lastMsg._id,
+                  content: lastMsg.content,
+                  sender: lastMsg.sender,
+                  createdAt: lastMsg.createdAt,
+                }
+              : null,
+          })
+        )
+  
+        // ✅ 3. Emit socket event to notify all users in this chat
+        const socket = getSocket()
+        socket.emit('message deleted', {
+            chatId: selectedChat._id,
+            lastMessage: lastMsg
+              ? {
+                  _id: lastMsg._id,
+                  content: lastMsg.content,
+                  sender: lastMsg.sender,
+                  createdAt: lastMsg.createdAt,
+                }
+              : null,
+          })
+        } else {
+          toast.error('Failed to delete message')
+        }
+      } catch (error) {
+        console.error('Error deleting message:', error)
+        toast.error('An unexpected error occurred')
       }
-    } catch (error) {
-      console.error('Error deleting message:', error)
-      toast.error('An unexpected error occurred')
     }
-  }
+  
   
 
   const handleTyping = (e) => {
@@ -307,7 +364,7 @@ const ChatBox = () => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {loading ? (
+      {(!messages || messages.length === 0) && loading ? (
           <div className="flex justify-center items-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
@@ -317,7 +374,7 @@ const ChatBox = () => {
           </div>
         ) : (
           <AnimatePresence>
-            {messages.map((message, index) => (
+            {[...messages, ...pendingMessages].map((message, index) => (
               <motion.div
                 key={message._id}
                 initial={{ opacity: 0, y: 20 }}
@@ -352,7 +409,19 @@ const ChatBox = () => {
                       marginLeft: isSameSenderMargin(messages, message, index, user._id),
                     }}
                   >
-                    <p className="text-sm break-words">{message.content}</p>
+                    {/* Show deleted message indicator */}
+                    {message.isDeleted || message.deletedForAll ? (
+                      <p className="text-sm break-words italic text-muted-foreground">
+                        This message was deleted
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-sm break-words">{message.content}</p>
+                        {message.isPending && (
+                          <span className="text-xs text-muted-foreground ml-2">Sending...</span>
+                        )}
+                      </>
+                    )}
                     <p
                       className={`text-xs mt-1 ${
                         message.sender._id === user._id
@@ -363,7 +432,10 @@ const ChatBox = () => {
                       {formatMessageTime(message.createdAt)}
                     </p>
 
-                    <Button
+
+                   {/* Hide delete button for deleted messages */}
+                   {!(message.isDeleted || message.deletedForAll) && (
+                      <Button
                         variant="ghost"
                         size="icon"
                         className="absolute -top-2 -right-2 h-6 w-6"
@@ -371,6 +443,7 @@ const ChatBox = () => {
                       >
                         <Trash className="h-3 w-3" />
                       </Button>
+                    )}
                   </div>
 
                 </div>
