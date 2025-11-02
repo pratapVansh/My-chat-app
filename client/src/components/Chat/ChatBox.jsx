@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { setOnlineUsers, addOnlineUser, removeOnlineUser } from '@/store/slices/chatSlice'
-import { sendMessage, fetchMessages, addMessage, addTypingUser, removeTypingUser,deleteMessage,deleteAllMessages ,updateMessage } from '@/store/slices/messageSlice'
+import { sendMessage, fetchMessages, addMessage, addTypingUser, removeTypingUser,deleteMessage,deleteAllMessages ,updateMessage ,setMessages} from '@/store/slices/messageSlice'
 import { updateChatLastMessage } from '@/store/slices/chatSlice'
 import { formatMessageTime, getSender, isSameUser, isSameSender, isSameSenderMargin } from '@/lib/utils'
 import { getSocket } from '@/lib/socket'
@@ -103,10 +103,39 @@ const ChatBox = () => {
       }
     
       // ✅ ADD THIS: Handle deleted messages
-      const handleDeletedMessage = ({ chatId, lastMessage }) => {
-        // Update the chat sidebar immediately for everyone
-        dispatch(updateChatLastMessage({ chatId, lastMessage }))
+      // NEW handler - replace the old handleDeletedMessage
+      const handleDeletedMessage = (payload) => {
+        // payload coming from server may contain:
+        // { chatId, deletedMessageIds, lastMessage, updatedMessage }
+        const { chatId, deletedMessageIds = [], lastMessage, updatedMessage } = payload || {}
+
+        // 1) Update chat preview immediately (you already did this)
+        if (chatId) {
+          dispatch(updateChatLastMessage({ chatId, lastMessage }))
+        }
+
+        // 2) If server sent a full updatedMessage object, use your updateMessage reducer
+        if (updatedMessage) {
+          dispatch(updateMessage({
+            updatedMessage,
+            currentUserId: user?._id
+          }))
+          return
+        }
+
+        // 3) Otherwise, fallback to deleting messages by id(s) in local state
+        if (Array.isArray(deletedMessageIds) && deletedMessageIds.length > 0) {
+          // Build new messages array removing any deleted ids
+          const updatedMessages = messages.filter(
+            (m) => !deletedMessageIds.includes(m._id?.toString())
+          )
+          dispatch(setMessages(updatedMessages))
+
+          // Also handle edge-case: if lastMessage is null and messages is now empty,
+          // update chat preview already handled above.
+        }
       }
+
       
     
       const handleTyping = (data) => {

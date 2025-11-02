@@ -214,6 +214,7 @@ export const deleteMessage = asyncHandler(async (req, res) => {
       chatId: updatedMessage.chat._id.toString(),
       deletedMessageIds: [updatedMessage._id.toString()],
       lastMessage,
+      updatedMessage,
     });
   } else {
     console.warn('⚠️ Chat not found for deleted message:', messageId);
