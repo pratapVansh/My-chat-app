@@ -69,61 +69,60 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <div className="w-80 border-r bg-card flex flex-col">
+      <div className="w-80 flex flex-col border-r bg-card">
         {/* Header */}
-        <div className="p-4 border-b">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-primary">ChatApp</h1>
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="icon" onClick={toggleTheme}>
-                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
+        <div className="p-4 border-b flex items-center justify-between">
+          <h1 className="text-xl font-bold text-primary">ChatApp</h1>
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" size="icon" onClick={toggleTheme}>
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon">
+              <Settings className="h-4 w-4" />
+            </Button>
           </div>
         </div>
-
+  
         {/* User Profile */}
-        <div className="p-4 border-b">
-          <div className="flex items-center space-x-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={currentAvatarSrc} alt={user?.name} />
-              <AvatarFallback>
-                {user?.name?.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name}</p>
-              <p className="text-xs text-muted-foreground truncate">
-                {user?.email}
-              </p>
-            </div>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-            <Button variant="ghost" size="icon" onClick={handlePickAvatar} title="Change avatar">
-              <User className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-            </Button>
+        <div className="p-4 border-b flex items-center space-x-3">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={currentAvatarSrc} alt={user?.name} />
+            <AvatarFallback>{user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{user?.name}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <Button variant="ghost" size="icon" onClick={handlePickAvatar} title="Change avatar">
+            <User className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
-
-        {/* Chats */}
-        <div className="flex-1 overflow-hidden">
+  
+        {/* Chat list (scrollable) */}
+        <div className="flex-1 overflow-y-auto">
           <MyChats />
         </div>
       </div>
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+  
+      {/* Chat Box (main chat area) */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         <ChatBox />
       </div>
     </div>
   )
+  
 }
 
 export default ChatPage

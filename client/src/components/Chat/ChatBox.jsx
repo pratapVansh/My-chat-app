@@ -343,7 +343,7 @@ const ChatBox = () => {
 
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
+    <div className="flex flex-col h-full bg-background">
       {/* Chat Header */}
       <div className="flex items-center justify-between p-4 border-b bg-card">
         <div className="flex items-center space-x-3">
@@ -392,8 +392,9 @@ const ChatBox = () => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {(!messages || messages.length === 0) && loading ? (
+      {/* ✅ Scrollable message area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background">
+       {(!messages || messages.length === 0) && loading ? (
           <div className="flex justify-center items-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
