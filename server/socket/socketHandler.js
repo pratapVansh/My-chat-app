@@ -66,25 +66,61 @@ const socketHandler = (io) => {
 
     // Handle leaving a chat
     socket.on('leave chat', (chatId) => {
+      if (!chatId) return console.warn('join chat with no id from', socket.userId)
       socket.leave(chatId)
       console.log(`User ${socket.user.name} left chat ${chatId}`)
     })
 
+    // --- server: inside io.on('connection', (socket) => { ... })
+
     // Handle typing
     socket.on('typing', (chatId) => {
-      socket.to(chatId).emit('typing', {
-        userId: userId,
-        chatId,
-      })
+      try {
+        if (!chatId) {
+          console.warn('typing event received with no chatId from', socket.userId)
+          return
+        }
+
+        // Optional safety: only forward if this socket has joined that chat
+        if (!socket.rooms.has(chatId)) {
+          console.warn(`socket ${socket.userId} attempted typing in room ${chatId} but is not joined`)
+          return
+        }
+
+        // forward to all other sockets in that chat only
+        socket.to(chatId).emit('typing', {
+          userId,
+          chatId,
+          ts: Date.now()
+        })
+      } catch (err) {
+        console.error('Error handling typing:', err)
+      }
     })
 
     // Handle stop typing
     socket.on('stop typing', (chatId) => {
-      socket.to(chatId).emit('stop typing', {
-        userId: userId,
-        chatId,
-      })
+      try {
+        if (!chatId) {
+          console.warn('stop typing event received with no chatId from', socket.userId)
+          return
+        }
+
+        if (!socket.rooms.has(chatId)) {
+          console.warn(`socket ${socket.userId} attempted stop typing in room ${chatId} but is not joined`)
+          return
+        }
+
+        socket.to(chatId).emit('stop typing', {
+          userId,
+          chatId,
+          ts: Date.now()
+        })
+      } catch (err) {
+        console.error('Error handling stop typing:', err)
+      }
     })
+
 
     // Handle new message
     socket.on('new message', (message) => {

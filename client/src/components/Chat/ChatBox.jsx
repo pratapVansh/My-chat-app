@@ -33,6 +33,7 @@ const ChatBox = () => {
 
   const messagesEndRef = useRef(null)
   const typingTimeoutRef = useRef(null)
+  const typingChatRef = useRef(null) // current chat for typing timeout
   const emojiPickerRef = useRef(null)
 
 
@@ -50,7 +51,12 @@ const ChatBox = () => {
     if (selectedChat) {
       dispatch(fetchMessages(selectedChat._id))
     }
-  }, [selectedChat, dispatch])
+  }, [selectedChat, dispatch,fetchMessages])
+
+  useEffect(() => {
+    typingChatRef.current = selectedChat?._id ?? null
+  }, [selectedChat?._id])
+  
 
   const socket = getSocket()
 
@@ -138,28 +144,59 @@ const ChatBox = () => {
 
       
     
-      const handleTyping = (data) => {
-        if (data.chatId === selectedChat?._id && data.userId !== user?._id) {
-          dispatch(addTypingUser(data))
+     /* const handleTyping = (e) => {
+        setNewMessage(e.target.value)
+      
+        const socket = getSocket()
+        if (!socket) {
+          console.warn('Socket not initialized yet!')
+          return
         }
-      }
-    
+      
+        // Guard: must have a selected chat id
+        const chatId = typingChatRef.current
+        if (!chatId) {
+          console.warn('Attempted to emit typing but no selectedChat._id')
+          return
+        }
+      
+        if (!typing) {
+          setTyping(true)
+          socket.emit('typing', chatId)
+          console.debug('emit typing', { chatId })
+        }
+      
+        clearTimeout(typingTimeoutRef.current)
+        typingTimeoutRef.current = setTimeout(() => {
+          socket.emit('stop typing', chatId)
+          setTyping(false)
+          console.debug('emit stop typing', { chatId })
+        }, 3000)
+      }*/
+
       const handleStopTyping = (data) => {
         if (data.chatId === selectedChat?._id && data.userId !== user?._id) {
           dispatch(removeTypingUser(data))
         }
       }
+      const handleTypingEvent = (data) => {
+        if (data.chatId === selectedChat?._id && data.userId !== user?._id) {
+          dispatch(addTypingUser(data))
+        }
+      }
     
       socket.on('message received', handleMessage)
       socket.on('message deleted', handleDeletedMessage) // ✅ ADD THIS
-      socket.on('typing', handleTyping)
+      socket.on('typing', handleTypingEvent)
       socket.on('stop typing', handleStopTyping)
     
       return () => {
-        socket.emit('leave chat', selectedChat._id)
+        if (selectedChat?._id) {
+          socket.emit('leave chat', selectedChat._id)
+        }
         socket.off('message received', handleMessage)
-        socket.off('message deleted', handleDeletedMessage) // ✅ ADD THIS
-        socket.off('typing', handleTyping)
+        socket.off('message deleted', handleDeletedMessage)
+        socket.off('typing', handleTypingEvent)
         socket.off('stop typing', handleStopTyping)
       }
     }, [selectedChat, dispatch, user])
@@ -371,11 +408,13 @@ const ChatBox = () => {
             <p className="text-sm text-muted-foreground">
               {selectedChat.isGroupChat
                 ? `${selectedChat.users.length} members`
-                : typingUsers.some(t => t.userId === otherUser?._id)
-                  ? 'typing...'
-                  : isOtherUserOnline
-                    ? 'online'
-                    : 'offline'}
+                : typingUsers?.some(
+                  (t) => t.userId === otherUser?._id && t.chatId === selectedChat?._id
+                )
+                ? 'typing...'
+                : isOtherUserOnline
+                  ? 'online'
+                  : 'offline'}
             </p>
           </div>
         </div>
@@ -483,7 +522,7 @@ const ChatBox = () => {
         )}
 
         {/* Typing Indicator */}
-        {typingUsers.length > 0 && (
+        {typingUsers.some(t => t.chatId === selectedChat?._id && t.userId !== user?._id) && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -494,9 +533,10 @@ const ChatBox = () => {
               <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
               <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
             </div>
-            <span className="text-sm">Someone is typing...</span>
+            <span className="text-sm">typing...</span>
           </motion.div>
         )}
+
 
         <div ref={messagesEndRef} />
       </div>
