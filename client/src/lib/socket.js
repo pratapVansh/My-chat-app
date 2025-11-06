@@ -12,7 +12,7 @@ export const initializeSocket = async (user, store) => {
 
   const token = localStorage.getItem('accessToken')
 
-  socket = io('http://localhost:5000', {
+  socket = io(import.meta.env.VITE_BACKEND_API, {
     auth: { token },
     transports: ['websocket'],
     extraHeaders: { Authorization: `Bearer ${token}` },
