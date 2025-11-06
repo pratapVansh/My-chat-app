@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Plus, Users, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import UnreadBadge from '@/components/ui/UnreadBadge'
 import { fetchChats, setSelectedChat, createChat, createGroupChat } from '@/store/slices/chatSlice'
 import { searchUsers, clearSearchResults } from '@/store/slices/authSlice'
+import { fetchUnreadCounts } from '@/store/slices/unreadSlice'
 import { formatTime, getSender } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -24,10 +26,12 @@ const MyChats = () => {
   const { chats, selectedChat, loading } = useSelector((state) => state.chat)
   const { user, searchResults = [], searchLoading = false } =
     useSelector((state) => state.auth || {})
+  const { unreadChatCounts } = useSelector((state) => state.unread)
 
   useEffect(() => {
     if (user && user._id) {
       dispatch(fetchChats())
+      dispatch(fetchUnreadCounts())
     }
   }, [dispatch, user])
 
@@ -103,6 +107,17 @@ const MyChats = () => {
       setSelectedUsers([...selectedUsers, userToToggle])
     }
   }
+
+  const sortedChats = useMemo(() => {
+    if (!Array.isArray(chats)) return []
+
+    const resolveTime = (chat) => {
+      const timestamp = chat?.latestMessage?.createdAt || chat?.updatedAt || chat?.createdAt
+      return timestamp ? new Date(timestamp).getTime() : 0
+    }
+
+    return [...chats].sort((a, b) => resolveTime(b) - resolveTime(a))
+  }, [chats])
 
   return (
     <div className="w-80 border-r bg-card flex flex-col">
@@ -205,7 +220,7 @@ const MyChats = () => {
           </div>
         ) : (
           <div className="p-2 space-y-1">
-            {chats.map((chat) => (
+            {sortedChats.map((chat) => (
               <motion.div
                 key={chat._id}
                 initial={{ opacity: 0, y: 10 }}
@@ -243,11 +258,17 @@ const MyChats = () => {
                         ? chat.chatName
                         : getSender(user, chat.users)?.name}
                     </h3>
-                    {chat.latestMessage && (
-                      <span className="text-xs text-muted-foreground">
-                        {formatTime(chat.latestMessage.createdAt)}
-                      </span>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {chat.latestMessage && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatTime(chat.latestMessage.createdAt)}
+                        </span>
+                      )}
+                      <UnreadBadge
+                        count={unreadChatCounts[chat._id]}
+                        className="flex-shrink-0"
+                      />
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
                     {chat.latestMessage

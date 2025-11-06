@@ -222,6 +222,129 @@ export const deleteMessage = asyncHandler(async (req, res) => {
 
   res.json(new ApiResponse(true, 'Message deleted successfully', updatedMessage));
 });
+// @desc    Mark messages as read
+// @route   PUT /api/message/mark-read/:chatId
+// @access  Private
+export const markMessagesAsRead = asyncHandler(async (req, res) => {
+  const { chatId } = req.params
+  const userId = req.user._id
+
+  // Check if chat exists and user is part of it
+  const chat = await Chat.findById(chatId)
+  if (!chat) {
+    throw new ApiError('Chat not found', 404)
+  }
+
+  const isUserInChat = chat.users.includes(userId)
+  if (!isUserInChat) {
+    throw new ApiError('You are not part of this chat', 403)
+  }
+
+  // Find all unread messages in this chat
+  const unreadMessages = await Message.find({
+    chat: chatId,
+    'readBy.user': { $ne: userId },
+    sender: { $ne: userId }, // Don't mark own messages as read
+  })
+
+  // Mark messages as read
+  const updatePromises = unreadMessages.map(message => {
+    message.readBy.push({
+      user: userId,
+      readAt: new Date()
+    })
+    return message.save()
+  })
+
+  await Promise.all(updatePromises)
+
+  res.json(
+    new ApiResponse(
+      true,
+      'Messages marked as read successfully',
+      {
+        markedCount: unreadMessages.length,
+        messageIds: unreadMessages.map(msg => msg._id)
+      }
+    )
+  )
+})
+
+// @desc    Get unread message count for a chat
+// @route   GET /api/message/unread/:chatId
+// @access  Private
+export const getUnreadCount = asyncHandler(async (req, res) => {
+  const { chatId } = req.params
+  const userId = req.user._id
+
+  // Check if chat exists and user is part of it
+  const chat = await Chat.findById(chatId)
+  if (!chat) {
+    throw new ApiError('Chat not found', 404)
+  }
+
+  const isUserInChat = chat.users.includes(userId)
+  if (!isUserInChat) {
+    throw new ApiError('You are not part of this chat', 403)
+  }
+
+  const unreadCount = await Message.countDocuments({
+    chat: chatId,
+    'readBy.user': { $ne: userId },
+    sender: { $ne: userId }, // Don't count own messages
+  })
+
+  res.json(
+    new ApiResponse(
+      true,
+      'Unread count fetched successfully',
+      { unreadCount }
+    )
+  )
+})
+
+// @desc    Get unread counts for all user's chats
+// @route   GET /api/message/unread-counts
+// @access  Private
+export const getUnreadCounts = asyncHandler(async (req, res) => {
+  const userId = req.user._id
+
+  // Get all chats where user is a member
+  const userChats = await Chat.find({
+    users: { $in: [userId] }
+  }).select('_id')
+
+  const chatIds = userChats.map(chat => chat._id)
+
+  // Get unread counts for each chat
+  const unreadCounts = await Promise.all(
+    chatIds.map(async (chatId) => {
+      const unreadCount = await Message.countDocuments({
+        chat: chatId,
+        'readBy.user': { $ne: userId },
+        sender: { $ne: userId },
+      })
+      return {
+        chatId: chatId.toString(),
+        unreadCount
+      }
+    })
+  )
+
+  const unreadCountsMap = unreadCounts.reduce((acc, { chatId, unreadCount }) => {
+    acc[chatId] = unreadCount
+    return acc
+  }, {})
+
+  res.json(
+    new ApiResponse(
+      true,
+      'Unread counts fetched successfully',
+      unreadCountsMap
+    )
+  )
+})
+
 // @desc    Delete all messages in a chat
 // @route   DELETE /api/message/chat/:chatId
 // @access  Private

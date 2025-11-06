@@ -124,10 +124,54 @@ const socketHandler = (io) => {
 
     // Handle new message
     socket.on('new message', (message) => {
-      socket.to(message.chat._id).emit('message received', message)
+      try {
+        const chatId = message?.chat?._id?.toString()
+        const senderId = message?.sender?._id?.toString()
+
+        if (!chatId) {
+          console.warn('⚠️ new message event missing chatId')
+          return
+        }
+
+        // Broadcast the message to everyone currently in the room (including sender for consistency)
+        io.to(chatId).emit('message received', message)
+
+        const participants = message?.chat?.users || []
+        const preview = {
+          _id: message?._id?.toString?.() || message?._id,
+          content: message?.content,
+          createdAt: message?.createdAt || new Date().toISOString(),
+          updatedAt: message?.updatedAt || message?.createdAt || new Date().toISOString(),
+          sender: {
+            _id: message?.sender?._id?.toString?.() || message?.sender?._id,
+            name: message?.sender?.name,
+            avatar: message?.sender?.avatar,
+          },
+        }
+
+        participants.forEach((participant) => {
+          const participantId = participant?._id?.toString?.() || participant?.toString?.()
+          if (!participantId) return
+
+          // Always update chat preview for every participant
+          io.to(participantId).emit('chat updated', {
+            chatId,
+            lastMessage: preview,
+            senderId,
+          })
+
+          // Skip unread count bumps for message author
+          if (senderId && participantId === senderId) return
+
+          io.to(participantId).emit('unread count updated', {
+            chatId,
+            senderId,
+          })
+        })
+      } catch (err) {
+        console.error('Error handling new message event:', err)
+      }
     })
-
-
 
     // Handle message deletion (notify all participants in that chat)
     socket.on('message deleted', (data) => {

@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { Navigate } from 'react-router-dom'
 import { getCurrentUser, refreshAccessToken } from '@/store/slices/authSlice'
 import { initializeSocket } from '@/lib/socket'
+import { store } from '@/store/store'
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading, user } = useSelector((state) => state.auth)
@@ -18,7 +19,7 @@ const ProtectedRoute = ({ children }) => {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      initializeSocket(user)
+      initializeSocket(user, store)
     }
   }, [isAuthenticated, user])
 
