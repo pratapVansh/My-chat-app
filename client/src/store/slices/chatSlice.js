@@ -110,14 +110,25 @@ const chatSlice = createSlice({
     },
     updateChatLastMessage: (state, action) => {
       const { chatId, lastMessage } = action.payload
+      if (!Array.isArray(state.chats) || state.chats.length === 0) return
       const chatIndex = state.chats.findIndex(chat => chat._id === chatId)
-      if (chatIndex !== -1) {
-        state.chats[chatIndex].latestMessage = lastMessage
-        // Move chat to top
-        const updatedChat = state.chats[chatIndex]
-        state.chats.splice(chatIndex, 1)
-        state.chats.unshift(updatedChat)
+
+      if (chatIndex === -1) return
+
+      const chat = state.chats[chatIndex]
+
+      chat.latestMessage = lastMessage || null
+      if (lastMessage?.createdAt) {
+        chat.updatedAt = lastMessage.createdAt
+      } else if (!lastMessage) {
+        chat.updatedAt = chat.updatedAt || new Date().toISOString()
+      } else {
+        chat.updatedAt = new Date().toISOString()
       }
+
+      const updatedChat = chat
+      state.chats.splice(chatIndex, 1)
+      state.chats.unshift(updatedChat)
     },
     
     setOnlineUsers: (state, action) => {

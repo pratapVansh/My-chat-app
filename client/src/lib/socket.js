@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client'
-import { setOnlineUsers, addOnlineUser, removeOnlineUser } from '../store/slices/chatSlice.js'
+import { setOnlineUsers, addOnlineUser, removeOnlineUser, updateChatLastMessage } from '../store/slices/chatSlice.js'
+import { updateUnreadChatCount, incrementUnreadCount } from '../store/slices/unreadSlice.js'
 
 let socket = null
 let storeRef = null 
@@ -49,6 +50,54 @@ export const initializeSocket = async (user, store) => {
   socket.on('user offline', (userId) => {
     console.log('🔴 User went offline:', userId)
     if (storeRef && userId != null) storeRef.dispatch(removeOnlineUser(userId.toString()))
+  })
+
+  socket.on('unread count updated', (payload = {}) => {
+    try {
+      if (!storeRef) return
+
+  const { chatId, senderId } = payload
+  if (!chatId) return
+
+  const normalizedChatId = chatId.toString()
+
+      const state = storeRef.getState()
+      const currentUserId = state?.auth?.user?._id?.toString()
+      const activeChatId = state?.chat?.selectedChat?._id
+        ? state.chat.selectedChat._id.toString()
+        : null
+
+      // Ignore events triggered by the current user
+      if (senderId && senderId.toString() === currentUserId) {
+        return
+      }
+
+      if (normalizedChatId === activeChatId) {
+        storeRef.dispatch(updateUnreadChatCount({ chatId: normalizedChatId, count: 0 }))
+      } else {
+        storeRef.dispatch(incrementUnreadCount({ chatId: normalizedChatId }))
+      }
+    } catch (err) {
+      console.error('Error handling unread count update:', err)
+    }
+  })
+
+  socket.on('chat updated', (payload = {}) => {
+    try {
+      if (!storeRef) return
+
+      const { chatId, lastMessage } = payload
+      if (!chatId) return
+
+      storeRef.dispatch(
+        updateChatLastMessage({
+          chatId: chatId.toString(),
+          lastMessage,
+        })
+      )
+    } catch (err) {
+      console.error('Error handling chat preview update:', err)
+    }
   })
 
   return socket

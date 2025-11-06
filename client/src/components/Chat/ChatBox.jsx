@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { setOnlineUsers, addOnlineUser, removeOnlineUser } from '@/store/slices/chatSlice'
 import { sendMessage, fetchMessages, addMessage, addTypingUser, removeTypingUser,deleteMessage,deleteAllMessages ,updateMessage ,setMessages} from '@/store/slices/messageSlice'
 import { updateChatLastMessage } from '@/store/slices/chatSlice'
+import { markMessagesAsRead, updateUnreadChatCount } from '@/store/slices/unreadSlice'
 import { formatMessageTime, getSender, isSameUser, isSameSender, isSameSenderMargin } from '@/lib/utils'
 import { getSocket } from '@/lib/socket'
 
@@ -50,8 +51,11 @@ const ChatBox = () => {
   useEffect(() => {
     if (selectedChat) {
       dispatch(fetchMessages(selectedChat._id))
+      // Mark messages as read when user opens a chat
+      dispatch(markMessagesAsRead(selectedChat._id))
+      dispatch(updateUnreadChatCount({ chatId: selectedChat._id, count: 0 }))
     }
-  }, [selectedChat, dispatch,fetchMessages])
+  }, [selectedChat, dispatch])
 
   useEffect(() => {
     typingChatRef.current = selectedChat?._id ?? null
@@ -101,13 +105,23 @@ const ChatBox = () => {
       socket.emit('join chat', selectedChat._id)
     
       const handleMessage = (newMessage) => {
-        dispatch(addMessage(newMessage))
+        // Add message to the list only if it belongs to the currently open chat
+        if (newMessage.chat._id === selectedChat?._id) {
+          dispatch(addMessage(newMessage))
+          // Mark as read immediately if message is from another user
+          if (newMessage.sender._id !== user?._id) {
+            dispatch(markMessagesAsRead(selectedChat._id))
+            dispatch(updateUnreadChatCount({ chatId: selectedChat._id, count: 0 }))
+          }
+        }
+
+        // Always update the chat preview for MyChats sidebar
         dispatch(updateChatLastMessage({
           chatId: newMessage.chat._id,
           lastMessage: newMessage
         }))
       }
-    
+
       // ✅ ADD THIS: Handle deleted messages
       // NEW handler - replace the old handleDeletedMessage
       const handleDeletedMessage = (payload) => {
@@ -186,10 +200,10 @@ const ChatBox = () => {
       }
     
       socket.on('message received', handleMessage)
-      socket.on('message deleted', handleDeletedMessage) // ✅ ADD THIS
+      socket.on('message deleted', handleDeletedMessage)
       socket.on('typing', handleTypingEvent)
       socket.on('stop typing', handleStopTyping)
-    
+
       return () => {
         if (selectedChat?._id) {
           socket.emit('leave chat', selectedChat._id)
@@ -199,7 +213,7 @@ const ChatBox = () => {
         socket.off('typing', handleTypingEvent)
         socket.off('stop typing', handleStopTyping)
       }
-    }, [selectedChat, dispatch, user])
+  }, [selectedChat, dispatch, user, messages])
 
   useEffect(() => {
     const handleClickOutside = (event) => {
