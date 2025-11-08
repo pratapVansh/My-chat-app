@@ -433,12 +433,6 @@ const ChatBox = () => {
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="icon">
-            <Phone className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon">
-            <Video className="h-4 w-4" />
-          </Button>
             {/* Modern dropdown */}
             <ChatOptionsDropdown selectedChat={selectedChat} />
         </div>
