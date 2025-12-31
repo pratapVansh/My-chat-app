@@ -373,14 +373,14 @@ const ChatBox = () => {
 
   if (!selectedChat) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-muted/50">
-        <div className="text-center space-y-4">
-          <div className="w-24 h-24 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center bg-background">
+        <div className="text-center space-y-5 px-8">
+          <div className="w-20 h-20 mx-auto bg-secondary/50 rounded-full flex items-center justify-center">
             <span className="text-4xl">💬</span>
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-muted-foreground">Select a chat</h3>
-            <p className="text-sm text-muted-foreground">Choose a conversation to start messaging</p>
+            <h3 className="text-lg font-medium mb-1">Select a conversation</h3>
+            <p className="text-sm text-muted-foreground">Choose a chat from the sidebar to start messaging</p>
           </div>
         </div>
       </div>
@@ -396,9 +396,9 @@ const ChatBox = () => {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Chat Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-card">
-        <div className="flex items-center space-x-3">
-          <Avatar className="h-10 w-10">
+      <div className="flex items-center justify-between px-5 py-4 border-b bg-card">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-11 w-11 ring-2 ring-background shadow-sm">
             <AvatarImage 
               src={
                 selectedChat.isGroupChat
@@ -407,19 +407,19 @@ const ChatBox = () => {
               } 
               alt="Avatar" 
             />
-            <AvatarFallback>
+            <AvatarFallback className="text-sm font-medium">
               {selectedChat.isGroupChat
                 ? selectedChat.chatName.charAt(0).toUpperCase()
                 : otherUser?.name?.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="font-semibold">
+            <h3 className="text-[15px] font-semibold leading-tight">
               {selectedChat.isGroupChat
                 ? selectedChat.chatName
                 : otherUser?.name}
             </h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground leading-tight mt-0.5">
               {selectedChat.isGroupChat
                 ? `${selectedChat.users.length} members`
                 : typingUsers?.some(
@@ -432,7 +432,7 @@ const ChatBox = () => {
             </p>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-1">
             {/* Modern dropdown */}
             <ChatOptionsDropdown selectedChat={selectedChat} />
         </div>
@@ -440,82 +440,82 @@ const ChatBox = () => {
 
       {/* Messages */}
       {/* ✅ Scrollable message area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background">
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-1 bg-background">
        {(!messages || messages.length === 0) && loading ? (
           <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary/30 border-t-primary"></div>
           </div>
         ) : !messages || messages.length === 0 ? (
           <div className="flex justify-center items-center h-full">
-            <p className="text-muted-foreground">No messages yet. Start the conversation!</p>
+            <p className="text-sm text-muted-foreground">No messages yet. Start the conversation!</p>
           </div>
         ) : (
           <AnimatePresence>
             {[...messages, ...pendingMessages].map((message, index) => (
               <motion.div
                 key={message._id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.2 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
                 className={`flex ${message.sender._id === user._id ? 'justify-end' : 'justify-start'}`}
+                style={{
+                  marginTop: isSameSender(messages, message, index, user._id) ? '2px' : '12px',
+                }}
               >
-                <div className={`flex max-w-[70%] ${message.sender._id === user._id ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`flex max-w-[65%] ${message.sender._id === user._id ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
                   {!isSameUser(messages, message, index) && (
-                    <Avatar className={`h-8 w-8 ${message.sender._id === user._id ? 'ml-2' : 'mr-2'}`}>
+                    <Avatar className={`h-7 w-7 ring-1 ring-border/30`}>
                       <AvatarImage src={message.sender.avatar} alt={message.sender.name} />
-                      <AvatarFallback>
+                      <AvatarFallback className="text-[11px]">
                         {message.sender.name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   )}
                   <div
-                    className={`relative px-4 py-2 rounded-2xl ${
-                      message.sender._id === user._id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted'
-                    } ${
+                    className={`relative group ${
                       isSameUser(messages, message, index)
                         ? message.sender._id === user._id
-                          ? 'mr-14'
-                          : 'ml-14'
+                          ? 'mr-9'
+                          : 'ml-9'
                         : ''
                     }`}
-                    style={{
-                      marginTop: isSameSender(messages, message, index, user._id) ? 3 : 10,
-                      marginLeft: isSameSenderMargin(messages, message, index, user._id),
-                    }}
                   >
-                    {/* Show deleted message indicator */}
-                    {message.isDeleted || message.deletedForAll ? (
-                      <p className="text-sm break-words italic text-muted-foreground">
-                        This message was deleted
+                    <div className={`px-3.5 py-2 rounded-2xl shadow-sm ${
+                      message.sender._id === user._id
+                        ? 'bg-primary text-white rounded-br-md'
+                        : 'bg-card border border-border/50 rounded-bl-md'
+                    }`}>
+                      {/* Show deleted message indicator */}
+                      {message.isDeleted || message.deletedForAll ? (
+                        <p className="text-[14px] break-words italic opacity-60 leading-relaxed">
+                          This message was deleted
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-[14px] break-words leading-relaxed">{message.content}</p>
+                          {message.isPending && (
+                            <span className="text-[11px] opacity-60 ml-2">Sending...</span>
+                          )}
+                        </>
+                      )}
+                      <p
+                        className={`text-[11px] mt-1 ${
+                          message.sender._id === user._id
+                            ? 'text-white/60'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {formatMessageTime(message.createdAt)}
                       </p>
-                    ) : (
-                      <>
-                        <p className="text-sm break-words">{message.content}</p>
-                        {message.isPending && (
-                          <span className="text-xs text-muted-foreground ml-2">Sending...</span>
-                        )}
-                      </>
-                    )}
-                    <p
-                      className={`text-xs mt-1 ${
-                        message.sender._id === user._id
-                          ? 'text-primary-foreground/70'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      {formatMessageTime(message.createdAt)}
-                    </p>
-
+                    </div>
 
                    {/* Hide delete button for deleted messages */}
                    {!(message.isDeleted || message.deletedForAll) && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute -top-2 -right-2 h-6 w-6"
+                        className="absolute -top-1 -right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-destructive/10 hover:text-destructive shadow-sm"
                         onClick={() => handleDeleteMessage(message._id)}
                       >
                         <Trash className="h-3 w-3" />
@@ -532,16 +532,15 @@ const ChatBox = () => {
         {/* Typing Indicator */}
         {typingUsers.some(t => t.chatId === selectedChat?._id && t.userId !== user?._id) && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center space-x-2 text-muted-foreground"
+            className="flex items-center gap-2 ml-9 mt-3"
           >
-            <div className="flex space-x-1">
-              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-              <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            <div className="flex gap-1 px-3 py-2 bg-card border border-border/50 rounded-2xl rounded-bl-md">
+              <div className="w-1.5 h-1.5 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms', animationDuration: '1s' }}></div>
+              <div className="w-1.5 h-1.5 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms', animationDuration: '1s' }}></div>
+              <div className="w-1.5 h-1.5 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms', animationDuration: '1s' }}></div>
             </div>
-            <span className="text-sm">typing...</span>
           </motion.div>
         )}
 
@@ -550,19 +549,20 @@ const ChatBox = () => {
       </div>
 
       {/* Message Input */}
-      <div className="p-4 border-t bg-card relative">
+      <div className="px-5 py-4 border-t bg-card relative">
         {/* Emoji Picker */}
         {showEmojiPicker && (
-          <div ref={emojiPickerRef} className="absolute bottom-16 left-4 z-50 emoji-picker-container">
+          <div ref={emojiPickerRef} className="absolute bottom-20 left-5 z-50 emoji-picker-container shadow-2xl">
             <Picker onEmojiSelect={handleEmojiSelect} />
           </div>
         )}
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2">
           {/* Emoji Toggle Button */}
           <Button 
             variant="ghost" 
             size="icon" 
+            className="h-10 w-10 hover:bg-accent/50 transition-colors"
             onClick={() => setShowEmojiPicker((prev) => !prev)}
           >
             <Smile className="h-5 w-5" />
@@ -574,7 +574,7 @@ const ChatBox = () => {
             onChange={handleTyping}
             onKeyPress={handleKeyPress}
             placeholder="Type a message..."
-            className="flex-1"
+            className="flex-1 h-11 bg-secondary/50 border-transparent hover:bg-secondary focus:bg-background transition-colors"
           />
 
           {/* Send Button */}
@@ -582,8 +582,9 @@ const ChatBox = () => {
             onClick={handleSendMessage}
             disabled={!newMessage.trim()}
             size="icon"
+            className="h-10 w-10 rounded-full shadow-sm transition-all disabled:opacity-40"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-[18px] w-[18px]" />
           </Button>
         </div>
       </div>

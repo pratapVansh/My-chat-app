@@ -71,29 +71,29 @@ const ChatPage = () => {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <div className="w-80 flex flex-col border-r bg-card">
+      <div className="w-[340px] flex flex-col border-r bg-card">
         {/* Header */}
-        <div className="p-4 border-b flex items-center justify-between">
-          <h1 className="text-xl font-bold text-primary">ChatApp</h1>
-          <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="icon" onClick={toggleTheme}>
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        <div className="px-5 py-4 border-b flex items-center justify-between">
+          <h1 className="text-xl font-semibold tracking-tight">Messages</h1>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-accent/50 transition-colors" onClick={toggleTheme}>
+              {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
             </Button>
-            <Button variant="ghost" size="icon">
-              <Settings className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-accent/50 transition-colors">
+              <Settings className="h-[18px] w-[18px]" />
             </Button>
           </div>
         </div>
   
         {/* User Profile */}
-        <div className="p-4 border-b flex items-center space-x-3">
-          <Avatar className="h-10 w-10">
+        <div className="px-5 py-4 border-b flex items-center gap-3">
+          <Avatar className="h-11 w-11 ring-2 ring-background shadow-sm">
             <AvatarImage src={currentAvatarSrc} alt={user?.name} />
-            <AvatarFallback>{user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarFallback className="text-sm font-medium">{user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{user?.name}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            <p className="text-[15px] font-medium truncate leading-tight">{user?.name}</p>
+            <p className="text-[13px] text-muted-foreground truncate leading-tight mt-0.5">{user?.email}</p>
           </div>
           <input
             ref={fileInputRef}
@@ -102,11 +102,11 @@ const ChatPage = () => {
             className="hidden"
             onChange={handleFileChange}
           />
-          <Button variant="ghost" size="icon" onClick={handlePickAvatar} title="Change avatar">
-            <User className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-accent/50 transition-colors" onClick={handlePickAvatar} title="Change avatar">
+            <User className="h-[18px] w-[18px]" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleLogout}>
-            <LogOut className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-accent/50 transition-colors" onClick={handleLogout}>
+            <LogOut className="h-[18px] w-[18px]" />
           </Button>
         </div>
   
