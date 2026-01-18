@@ -10,10 +10,11 @@ import {
   getUnreadCounts
 } from '../controllers/messageController.js'
 import { protect } from '../middleware/authMiddleware.js'
+import { messageLimiter } from '../middleware/rateLimitMiddleware.js'
 
 const router = express.Router()
 
-router.route('/').post(protect, sendMessage)
+router.route('/').post(protect, messageLimiter, sendMessage)
 router.route('/unread-counts').get(protect, getUnreadCounts)
 router.route('/:chatId').get(protect, fetchMessages)
 router.route('/mark-read/:chatId').put(protect, markMessagesAsRead)

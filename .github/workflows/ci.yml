@@ -1,0 +1,57 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, devops-lite ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Backend validation
+  backend:
+    name: Backend Build & Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install backend dependencies
+        working-directory: ./server
+        run: npm ci
+      
+      - name: Check for syntax errors
+        working-directory: ./server
+        run: node -c server.js
+
+  # Frontend validation
+  frontend:
+    name: Frontend Build & Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install frontend dependencies
+        working-directory: ./client
+        run: npm ci
+      
+      - name: Build frontend
+        working-directory: ./client
+        run: npm run build
+        env:
+          VITE_BACKEND_API: http://localhost:5000
+      
+      - name: Check build output
+        run: ls -la ./client/dist

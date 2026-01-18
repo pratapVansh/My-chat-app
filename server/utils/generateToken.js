@@ -1,18 +1,49 @@
 import jwt from 'jsonwebtoken'
-import crypto from 'crypto'
 
-export const generateAccessToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '15m',
-  })
+/**
+ * Generate Access Token (Short-lived)
+ * Used for authenticating API requests
+ * Verified by auth middleware
+ */
+export const generateAccessToken = (userId) => {
+  if (!process.env.ACCESS_TOKEN_SECRET) {
+    throw new Error('ACCESS_TOKEN_SECRET is not defined in environment variables')
+  }
+  
+  return jwt.sign(
+    { id: userId, type: 'access' },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: process.env.ACCESS_TOKEN_EXPIRE || '15m' }
+  )
 }
 
-export const generateRefreshToken = () => {
-  return crypto.randomBytes(40).toString('hex')
+/**
+ * Generate Refresh Token (Long-lived)
+ * Used only for refreshing access tokens
+ * NOT accepted in Authorization header
+ */
+export const generateRefreshToken = (userId) => {
+  if (!process.env.REFRESH_TOKEN_SECRET) {
+    throw new Error('REFRESH_TOKEN_SECRET is not defined in environment variables')
+  }
+  
+  return jwt.sign(
+    { id: userId, type: 'refresh' },
+    process.env.REFRESH_TOKEN_SECRET,
+    { expiresIn: process.env.REFRESH_TOKEN_EXPIRE || '7d' }
+  )
 }
 
-export const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d',
-  })
+/**
+ * Verify Access Token
+ */
+export const verifyAccessToken = (token) => {
+  return jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
+}
+
+/**
+ * Verify Refresh Token
+ */
+export const verifyRefreshToken = (token) => {
+  return jwt.verify(token, process.env.REFRESH_TOKEN_SECRET)
 }

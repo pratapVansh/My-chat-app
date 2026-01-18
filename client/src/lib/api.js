@@ -45,43 +45,66 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
+    // Handle rate limit errors (429 status)
+    if (error.response?.status === 429) {
+      const message = error.response?.data?.message || 'Too many requests. Please try again later.'
+      toast.error(message)
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        return new Promise(function(resolve, reject) {
-          failedQueue.push({resolve, reject})
-        }).then(token => {
-          originalRequest.headers.Authorization = 'Bearer ' + token
-          return api(originalRequest)
-        }).catch(err => {
-          return Promise.reject(err)
-        })
-      }
-
-      originalRequest._retry = true
-      isRefreshing = true
-
-      try {
-        const response = await axios.post('/api/auth/refresh', {}, {
-          withCredentials: true
-        })
-        
-        const { accessToken, user } = response.data.data
-        localStorage.setItem('accessToken', accessToken)
-        localStorage.setItem('user', JSON.stringify(user))
-        
-        processQueue(null, accessToken)
-        
-        originalRequest.headers.Authorization = 'Bearer ' + accessToken
-        return api(originalRequest)
-      } catch (refreshError) {
-        processQueue(refreshError, null)
+      const errorCode = error.response?.data?.code
+      const errorMessage = error.response?.data?.message || ''
+      
+      // Check if it's an invalid token (not just expired)
+      if (errorCode === 'INVALID_TOKEN' || errorCode === 'WRONG_TOKEN_TYPE' || errorMessage.includes('Invalid token')) {
+        // Clear invalid tokens and redirect to login
         localStorage.removeItem('accessToken')
         localStorage.removeItem('user')
         window.location.href = '/login'
-        toast.error('Session expired. Please login again.')
-        return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
+        toast.error('Your session is invalid. Please login again.')
+        return Promise.reject(error)
+      }
+      
+      // If token expired, try to refresh
+      if (errorCode === 'TOKEN_EXPIRED' || errorMessage.includes('expired')) {
+        if (isRefreshing) {
+          return new Promise(function(resolve, reject) {
+            failedQueue.push({resolve, reject})
+          }).then(token => {
+            originalRequest.headers.Authorization = 'Bearer ' + token
+            return api(originalRequest)
+          }).catch(err => {
+            return Promise.reject(err)
+          })
+        }
+
+        originalRequest._retry = true
+        isRefreshing = true
+
+        try {
+          const response = await axios.post('/api/auth/refresh', {}, {
+            withCredentials: true
+          })
+          
+          const { accessToken, user } = response.data.data
+          localStorage.setItem('accessToken', accessToken)
+          localStorage.setItem('user', JSON.stringify(user))
+          
+          processQueue(null, accessToken)
+          
+          originalRequest.headers.Authorization = 'Bearer ' + accessToken
+          return api(originalRequest)
+        } catch (refreshError) {
+          processQueue(refreshError, null)
+          localStorage.removeItem('accessToken')
+          localStorage.removeItem('user')
+          window.location.href = '/login'
+          toast.error('Session expired. Please login again.')
+          return Promise.reject(refreshError)
+        } finally {
+          isRefreshing = false
+        }
       }
     }
     

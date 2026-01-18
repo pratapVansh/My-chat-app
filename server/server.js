@@ -14,6 +14,7 @@ import chatRoutes from './routes/chatRoutes.js'
 import messageRoutes from './routes/messageRoutes.js'
 import { notFound, errorHandler } from './middleware/errorMiddleware.js'
 import { socketHandler } from './socket/socketHandler.js'
+import { apiLimiter } from './middleware/rateLimitMiddleware.js'
 
 // -------------------- CONNECT TO DATABASE --------------------
 connectDB()
@@ -35,6 +36,9 @@ app.use(cors({
 }))
 app.use(express.json())
 app.use(cookieParser())
+
+// Apply global rate limiter to all API routes
+app.use('/api', apiLimiter)
 
 // ✅ ADD THIS HERE: Attach io to request object
 app.use((req, res, next) => {
