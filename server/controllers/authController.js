@@ -26,11 +26,18 @@ export const registerUser = asyncHandler(async (req, res) => {
   })
 
   if (user) {
+    // Generate access token (short-lived, 15min)
     const accessToken = generateAccessToken(user._id)
-    const refreshToken = generateRefreshToken()
+    
+    // Generate refresh token (long-lived, 7 days)
+    const refreshToken = generateRefreshToken(user._id)
+    
+    // Calculate refresh token expiry
+    const refreshTokenExpiry = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+    )
     
     // Store refresh token in database
-    const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
     user.refreshTokens.push({
       token: refreshToken,
       expiresAt: refreshTokenExpiry,
@@ -41,7 +48,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     })
     
@@ -83,12 +90,18 @@ export const loginUser = asyncHandler(async (req, res) => {
   user.isOnline = true
   user.lastSeen = new Date()
   
-  // Generate new tokens
+  // Generate access token (short-lived, 15min)
   const accessToken = generateAccessToken(user._id)
-  const refreshToken = generateRefreshToken()
+  
+  // Generate refresh token (long-lived, 7 days)
+  const refreshToken = generateRefreshToken(user._id)
+  
+  // Calculate refresh token expiry
+  const refreshTokenExpiry = new Date(
+    Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+  )
   
   // Store refresh token in database
-  const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
   user.refreshTokens.push({
     token: refreshToken,
     expiresAt: refreshTokenExpiry,
@@ -105,7 +118,7 @@ export const loginUser = asyncHandler(async (req, res) => {
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   })
 
@@ -137,27 +150,55 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
   )
 })
 
-// @desc    Refresh access token
+// @desc    Refresh access token using refresh token
 // @route   POST /api/auth/refresh
 // @access  Public
+// @note    This endpoint ONLY accepts refresh tokens, not access tokens
 export const refreshToken = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.cookies
+  const { refreshToken: token } = req.cookies
 
-  if (!refreshToken) {
-    throw new ApiError('No refresh token provided', 401)
+  // Check if refresh token exists
+  if (!token) {
+    throw new ApiError('No refresh token provided. Please login again', 401)
   }
 
-  // Find user with this refresh token
+  // Verify refresh token with REFRESH_TOKEN_SECRET
+  let decoded
+  try {
+    const { verifyRefreshToken } = await import('../utils/generateToken.js')
+    decoded = verifyRefreshToken(token)
+  } catch (error) {
+    // Clear invalid cookie
+    res.clearCookie('refreshToken')
+    
+    if (error.name === 'TokenExpiredError') {
+      throw new ApiError('Refresh token expired. Please login again', 401)
+    } else if (error.name === 'JsonWebTokenError') {
+      throw new ApiError('Invalid refresh token. Please login again', 401)
+    } else {
+      throw new ApiError('Token verification failed. Please login again', 401)
+    }
+  }
+
+  // Ensure it's a refresh token (not an access token)
+  if (decoded.type !== 'refresh') {
+    res.clearCookie('refreshToken')
+    throw new ApiError('Invalid token type. Please login again', 401)
+  }
+
+  // Find user with this refresh token in database
   const user = await User.findOne({
-    'refreshTokens.token': refreshToken,
+    _id: decoded.id,
+    'refreshTokens.token': token,
     'refreshTokens.expiresAt': { $gt: new Date() }
   })
 
   if (!user) {
-    throw new ApiError('Invalid or expired refresh token', 401)
+    res.clearCookie('refreshToken')
+    throw new ApiError('Invalid or expired refresh token. Please login again', 401)
   }
 
-  // Generate new access token
+  // Generate NEW access token (15min)
   const accessToken = generateAccessToken(user._id)
 
   // Update user online status
@@ -168,7 +209,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
   res.json(
     new ApiResponse(
       true,
-      'Token refreshed successfully',
+      'Access token refreshed successfully',
       {
         user,
         accessToken,

@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
+import { verifyAccessToken } from '../utils/generateToken.js'
 
 const socketHandler = (io) => {
   // Map to track active socket count per user
@@ -16,7 +16,14 @@ const socketHandler = (io) => {
         return next(new Error('Authentication error: No token provided'))
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET)
+      // Verify access token with ACCESS_TOKEN_SECRET
+      const decoded = verifyAccessToken(token)
+      
+      // Ensure it's an access token
+      if (decoded.type !== 'access') {
+        return next(new Error('Authentication error: Invalid token type'))
+      }
+      
       const user = await User.findById(decoded.id).select('-password')
 
       if (!user) {
@@ -216,97 +223,3 @@ const socketHandler = (io) => {
 }
 
 export { socketHandler }
-
-
-/*import jwt from 'jsonwebtoken'
-import User from '../models/User.js'
-
-const socketHandler = (io) => {
-  // Authentication middleware for socket connections
-  io.use(async (socket, next) => {
-    try {
-      const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1]
-      
-      if (!token) {
-        return next(new Error('Authentication error: No token provided'))
-      }
-
-      const decoded = jwt.verify(token, process.env.JWT_SECRET)
-      const user = await User.findById(decoded.id).select('-password')
-      
-      if (!user) {
-        return next(new Error('Authentication error: User not found'))
-      }
-
-      socket.userId = user._id.toString()
-      socket.user = user
-      next()
-    } catch (error) {
-      next(new Error('Authentication error: Invalid token'))
-    }
-  })
-
-  io.on('connection',async (socket) => {
-    console.log(`User connected: ${socket.user.name} (${socket.userId})`)
-
-    // Update user online status
-    await User.findByIdAndUpdate(socket.userId, {               // check here to solve the problem of online user all time 
-      isOnline: true,
-      lastSeen: new Date(),
-    })
-
-    io.emit('user online', socket.userId)
-
-    // Join user to their personal room
-    socket.join(socket.userId)
-
-    // Handle joining a chat
-    socket.on('join chat', (chatId) => {
-      socket.join(chatId)
-      console.log(`User ${socket.user.name} joined chat ${chatId}`)
-    })
-
-    // Handle leaving a chat
-    socket.on('leave chat', (chatId) => {
-      socket.leave(chatId)
-      console.log(`User ${socket.user.name} left chat ${chatId}`)
-    })
-
-    // Handle typing
-    socket.on('typing', (chatId) => {
-      socket.to(chatId).emit('typing', {
-        userId: socket.userId,
-        chatId,
-      })
-    })
-
-    // Handle stop typing
-    socket.on('stop typing', (chatId) => {
-      socket.to(chatId).emit('stop typing', {
-        userId: socket.userId,
-        chatId,
-      })
-    })
-
-    // Handle new message
-    socket.on('new message', (message) => {
-      socket.to(message.chat._id).emit('message received', message)
-    })
-
-    // Handle user disconnect
-    socket.on('disconnect',async () => {
-      console.log(`User disconnected: ${socket.user.name} (${socket.userId})`)
-      
-      // Update user offline status
-      await User.findByIdAndUpdate(socket.userId, {
-        isOnline: false,
-        lastSeen: new Date(),
-      })
-
-      // Notify all connected users that this user went offline
-      socket.broadcast.emit('user offline', socket.userId)
-    })
-  })
-}
-
-export { socketHandler }*/
